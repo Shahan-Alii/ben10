@@ -1,20 +1,24 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { View, Text } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import StackNavigator from './components/StackNavigator';
 
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+import * as Font from 'expo-font';
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const App = () => {
+    const [fontLoaded, setFontLoaded] = useState(false);
+
+    useEffect(() => {
+        async function loadFont() {
+            await Font.loadAsync({
+                custom1: require('./assets/fonts/RussoOne-Regular.ttf'),
+                custom2: require('./assets/fonts/Orbitron-VariableFont_wght.ttf'),
+            });
+            setFontLoaded(true);
+        }
+        loadFont();
+    }, []);
+
+    return <StackNavigator />;
+};
+
+export default App;
