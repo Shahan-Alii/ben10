@@ -35,4 +35,4 @@ yarn-error.*
 *.tsbuildinfo
 
 #imgs
-./assets/images
+assets/images

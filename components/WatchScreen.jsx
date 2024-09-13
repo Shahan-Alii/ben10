@@ -1,11 +1,10 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
     ImageBackground,
     StyleSheet,
     View,
     Image,
-    ScrollView,
     Dimensions,
 } from 'react-native';
 import {
@@ -17,14 +16,12 @@ import {
 import Animated, {
     useAnimatedGestureHandler,
     useSharedValue,
-    runOnJS,
     useAnimatedStyle,
-    withRepeat,
     withTiming,
     Easing,
+    runOnJS,
+    interpolate,
 } from 'react-native-reanimated';
-
-// data of aliens
 
 const alienData = [
     {
@@ -60,7 +57,7 @@ const alienData = [
         image: require('../assets/images/alien5.png'),
         name: 'WaterHazard',
         power: 'Manipulates water and liquid substances',
-        primaryColor: '#0188ca',
+        primaryColor: '#b41e1e',
     },
     {
         key: 'Alien 6',
@@ -100,25 +97,18 @@ const alienData = [
 ];
 
 const { width, height } = Dimensions.get('window');
-const diagonal = Math.sqrt(width * width + height * height);
-
 const ALIEN_SIZE = 100;
 
 export default function WatchScreen({ navigation }) {
     const scrollRef = useRef(null);
     const translateX = useSharedValue(0);
-    const translateY = useSharedValue(-10);
-    const currentIndex = useSharedValue(0);
-
-    const rotate = useSharedValue(0);
+    const [currentIndex, setCurrentIndex] = useState(0);
 
     const rippleScale = useSharedValue(0);
     const rippleOpacity = useSharedValue(0);
 
-    //opacity of effect above watch
-
-    // function for scrolling scrollView to its index
-    const scrollToIndex = (index) => {
+    // Function to manually scroll the ScrollView
+    const manualScrollTo = (index) => {
         if (scrollRef.current) {
             scrollRef.current.scrollTo({
                 x: index * width,
@@ -129,29 +119,44 @@ export default function WatchScreen({ navigation }) {
 
     // Pan Gesture Handler
     const onPanGesture = useAnimatedGestureHandler({
-        onActive: (event) => {
-            translateX.value = event.translationX;
+        onStart: (event, context) => {
+            context.x = translateX.value;
+        },
+        onActive: (event, context) => {
+            translateX.value = event.translationX + context.x;
+
+            // // Scroll the ScrollView manually based on translationX
+            // if (scrollRef.current) {
+            //     scrollRef.current.scrollTo({
+            //         x: -translateX.value,
+            //         animated: false, // Disable animation during active gesture
+            //     });
+            // }
         },
         onEnd: () => {
-            if (translateX.value > 150 && currentIndex.value > 0) {
-                currentIndex.value -= 1;
-                rotate.value = withTiming(rotate.value - 90, {
-                    duration: 1000,
-                });
-            } else if (
-                translateX.value < -150 &&
-                currentIndex.value < alienData.length - 1
-            ) {
-                currentIndex.value += 1;
+            const newIndex = Math.round(-translateX.value / width); // Calculate new index based on gesture translation
+            const clampedIndex = Math.max(
+                0,
+                Math.min(newIndex, alienData.length - 1)
+            );
 
-                rotate.value = withTiming(rotate.value + 90, {
-                    duration: 1000,
-                });
-            }
+            // Update translateX value to snap to the nearest alien
+            translateX.value = withTiming(clampedIndex * -width, {
+                duration: 300,
+            });
 
-            runOnJS(scrollToIndex)(currentIndex.value);
+            // Scroll to the correct alien after gesture ends
+            runOnJS(manualScrollTo)(clampedIndex);
+
+            // Update the current index
+            runOnJS(setCurrentIndex)(clampedIndex);
         },
     });
+
+    // Function to navigate to AlienScreen
+    const navigateToNextScreen = (currentAlien) => {
+        navigation.navigate('AlienScreen', { alien: currentAlien });
+    };
 
     const onDoubleTap = () => {
         rippleScale.value = 0;
@@ -165,11 +170,7 @@ export default function WatchScreen({ navigation }) {
             },
             (isFinished) => {
                 if (isFinished) {
-                    // Only navigate if the animation is completed
-                    runOnJS(navigateToNextScreen)(
-                        alienData[currentIndex.value]
-                    );
-
+                    runOnJS(navigateToNextScreen)(alienData[currentIndex]);
                     rippleScale.value = 0;
                     rippleOpacity.value = 0;
                 }
@@ -181,11 +182,6 @@ export default function WatchScreen({ navigation }) {
         });
     };
 
-    // function to navigate to ALienScreen
-    const navigateToNextScreen = (currentAlien) => {
-        navigation.navigate('AlienScreen', { alien: currentAlien });
-    };
-
     const rippleStyle = useAnimatedStyle(() => {
         return {
             transform: [{ scale: rippleScale.value }],
@@ -194,8 +190,13 @@ export default function WatchScreen({ navigation }) {
     });
 
     const rDial = useAnimatedStyle(() => {
+        const rotate = interpolate(
+            translateX.value,
+            [-width, 0, width],
+            [-90, 0, 90]
+        );
         return {
-            transform: [{ rotate: `${rotate.value}deg` }],
+            transform: [{ rotate: `${rotate}deg` }],
         };
     });
 
@@ -224,18 +225,21 @@ export default function WatchScreen({ navigation }) {
                                 />
 
                                 {/* Aliens ScrollView */}
-
-                                <ScrollView
-                                    style={styles.scroll}
+                                <Animated.ScrollView
                                     horizontal
-                                    ref={scrollRef}
-                                    scrollEnabled={false}
+                                    style={styles.scroll}
+                                    ref={scrollRef} // Reference for scrolling
+                                    scrollEnabled={false} // Disable native scrolling
                                     showsHorizontalScrollIndicator={false}
+                                    pagingEnabled
                                 >
                                     {alienData.map((item, index) => (
                                         <View
                                             key={index}
-                                            style={styles.alienContainer}
+                                            style={[
+                                                styles.alienContainer,
+                                                { width },
+                                            ]}
                                         >
                                             <Image
                                                 source={item.image}
@@ -244,9 +248,9 @@ export default function WatchScreen({ navigation }) {
                                             />
                                         </View>
                                     ))}
-                                </ScrollView>
+                                </Animated.ScrollView>
 
-                                {/* Ripple Effect  View*/}
+                                {/* Ripple Effect View */}
                                 <Animated.View
                                     style={[styles.ripple, rippleStyle]}
                                 />
@@ -287,22 +291,14 @@ const styles = StyleSheet.create({
         left: 10,
     },
     scroll: { position: 'absolute', top: 358 },
-
     alien: {
         width: ALIEN_SIZE,
         height: ALIEN_SIZE,
     },
     alienContainer: {
-        width: width,
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    effect: {
-        height: 400,
-        width: 270,
-        position: 'absolute',
-        top: 260,
     },
     ripple: {
         position: 'absolute',
